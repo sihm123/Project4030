@@ -48,7 +48,7 @@ let scatterDataAll = [];
 let scatterPairs = [];
 
 // Load CSV data
-d3.csv("Supply_Utilization_Accounts_Food_and_Diet_E_Americas_NOFLAG.csv").then(data => {
+d3.csv("food_supply.csv").then(data => {
   data.forEach(d => {
     d.country    = d.Area;
     d.year       = +d.Year;
