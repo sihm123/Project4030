@@ -59,6 +59,9 @@ d3.csv("FoodSupply.csv").then(data => {
 
   scatterDataAll = data;
 
+  console.log("Rows loaded:", scatterDataAll.length);
+  console.log("First row:", scatterDataAll[0]);
+
   // Populate indicator dropdown
   const indicators = Array.from(new Set(data.map(d => d.indicator))).sort();
 
