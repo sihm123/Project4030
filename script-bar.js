@@ -44,7 +44,7 @@ let barDataAll = [];
 // ----------------------
 // 2. Load FoodSupply.csv
 // ----------------------
-d3.csv("FoodSupply.csv").then(data => {
+d3.csv("./FoodSupply.csv").then(data => {
     data.forEach(d => {
         d.country    = d["Area"];
         d.food_group = d["Food Group"];
