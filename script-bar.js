@@ -1,4 +1,4 @@
-// script-bar.js
+// script-bar.js 
 console.log("script-bar.js loaded");
 
 // ----------------------
