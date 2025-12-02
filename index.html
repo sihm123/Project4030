@@ -1,38 +1,42 @@
+<!DOCTYPE html>
 <html>
-  <head>
-    <meta charset = "UTF-8"/>
+<head>
+    <meta charset="UTF-8"/>
     <title>Nutrition D3 Dashboard</title>
-    <script src = "https://d3js.org/d3.v7.min.js"></script>
+
+    <!-- D3.js -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
     <style>
-      svg{ border: 1px solid #ccc; margin-top: 20px;}
-      </style>
-  </head>
+        svg { border: 1px solid #ccc; margin-top: 20px; }
+        body { font-family: sans-serif; margin: 30px; }
+    </style>
+</head>
 
-  <body>
-    <h1>Nutrition Visualizations</h1>
+<body>
+    <h1>Nutrition Dashboard</h1>
 
+    <!-- SCATTERPLOT -->
     <h2>Scatterplot (2010 vs 2022)</h2>
-    <p style="max-width: 800px; font-size: 16px; margin-top: 10px;">
-        Each point represents a country. The x-axis shows the nutrient supply in 2010 and the
-        y-axis shows the nutrient supply in 2022 for the selected indicator.
+    <p style="max-width:800px">
+        Each point represents a country. The x-axis shows nutrient supply in 2010 and the y-axis
+        shows the nutrient supply in 2022.
     </p>
-    <select id = "scatterIndicator"></select>
-    <svg id = "scatter" width = "800" height="450"></svg>
+    <svg id="scatter" width="800" height="450"></svg>
 
+    <!-- RANKING CHART -->
+    <h2>Country Ranking (Protein Supply 2022)</h2>
+    <svg id="rankchart" width="800" height="600"></svg>
 
-    <h2>Line Chart (2010-2022)</h2>
-    <select id="lineCountry"></select>
-    <select id="lineIndicator"></select>
-    <svg id="linechart" width="800" height="450"></svg>
-
-
-    <h2>Bar Chart (Protein Supply by Food Group)</h2>
+    <!-- PROTEIN BAR CHART -->
+    <h2>Protein Supply by Food Group (Select Country)</h2>
     <select id="barCountry"></select>
-    <svg id="barchart" width="800" height="450"></svg>
+    <svg id="barchart" width="800" height="500"></svg>
 
+    <!-- Scripts -->
+    <script src="script-scatter.js"></script>
+    <script src="script-rank.js"></script>
+    <script src="script-bar.js"></script>
 
-    <script src = "script-scatter.js"></script>
-    <script src = "script-line.js"></script>
-    <script src = "script-bar.js"></script>
-  </body>
+</body>
 </html>
