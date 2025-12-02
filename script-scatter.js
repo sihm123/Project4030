@@ -1,124 +1,284 @@
-// script-scatter.js
+// ======================
+// GROUPS & COLOR SCALE
+// ======================
 
-console.log("script-scatter.js loaded");
+const nutrientGroups = {
+    Macronutrients: [
+        "Energy supply",
+        "Protein supply",
+        "Fat supply",
+        "Carbohydrate (available) supply",
+        "Dietary fibre supply"
+    ],
+    Vitamins: [
+        "Vitamin A supply (retinol activity equivalents)",
+        "Vitamin A supply (retinol equivalents)",
+        "Vitamin B6 supply",
+        "Vitamin B12 supply",
+        "Vitamin C supply",
+        "Riboflavin supply",
+        "Thiamin supply"
+    ],
+    Minerals: [
+        "Calcium supply",
+        "Copper supply",
+        "Iron supply",
+        "Magnesium supply",
+        "Phosphorus supply",
+        "Potassium supply",
+        "Selenium supply",
+        "Zinc supply"
+    ],
+    "Fatty acids": [
+        "Total saturated fatty acids supply",
+        "Total monounsaturated fatty acids supply",
+        "Total polyunsaturated fatty acids supply"
+    ],
+    "Omega-3s": [
+        "Eicosapentaenoic acid (EPA) supply",
+        "Docosahexaenoic acid (DHA) supply"
+    ]
+};
 
-// ----------------------
-// 1. Basic SVG setup
-// ----------------------
-const scatterSvg = d3.select("#scatter");
-const scatterWidth = +scatterSvg.attr("width");
-const scatterHeight = +scatterSvg.attr("height");
+function getGroup(indicator) {
+    const clean = indicator.replace(/\s+/g, " ").trim();
+    for (const [group, list] of Object.entries(nutrientGroups)) {
+        if (list.includes(clean)) return group;
+    }
+    return "Other";
+}
 
-const scatterMargin = { top: 40, right: 40, bottom: 60, left: 70 };
-const scatterInnerWidth = scatterWidth - scatterMargin.left - scatterMargin.right;
-const scatterInnerHeight = scatterHeight - scatterMargin.top - scatterMargin.bottom;
+const groupNames = Object.keys(nutrientGroups);
+const colorScaleGroups = d3.scaleOrdinal()
+    .domain(groupNames)
+    .range(d3.schemeTableau10.slice(0, groupNames.length));
 
-const scatterG = scatterSvg.append("g")
+// expose for other scripts
+window.nutrientGroups = nutrientGroups;
+window.groupNames = groupNames;
+window.colorScaleGroups = colorScaleGroups;
+
+// ======================
+// SCATTER SETUP
+// ======================
+
+const scatterSVG = d3.select("#scatterplot");
+const scatterWidth = 600;
+const scatterHeight = 500;
+scatterSVG.attr("viewBox", `0 0 ${scatterWidth} ${scatterHeight}`);
+
+const scatterMargin = { top: 20, right: 20, bottom: 60, left: 70 };
+const scatterInnerWidth =
+    scatterWidth - scatterMargin.left - scatterMargin.right;
+const scatterInnerHeight =
+    scatterHeight - scatterMargin.top - scatterMargin.bottom;
+
+const scatterG = scatterSVG.append("g")
     .attr("transform", `translate(${scatterMargin.left},${scatterMargin.top})`);
 
+let currentGroupFilter = null;
+let lastPointSelection = null; // { area, indicator }
 
-// Scales and axes
-const xScale = d3.scaleLinear().range([0, scatterInnerWidth]);
-const yScale = d3.scaleLinear().range([scatterInnerHeight, 0]);
+// background rect so clicking empty space clears filter
+const bgRect = scatterG.append("rect")
+    .attr("x", 0)
+    .attr("y", 0)
+    .attr("width", scatterInnerWidth)
+    .attr("height", scatterInnerHeight)
+    .attr("fill", "transparent")
+    .on("click", () => {
+        // clear group filter and go back to last point selection
+        currentGroupFilter = null;
+        resetScatterFilter();
+        updateLegendStyles();
+        if (lastPointSelection &&
+            typeof updateBarChart === "function" &&
+            typeof updateLineChart === "function") {
+            updateBarChart(lastPointSelection.area, lastPointSelection.indicator);
+            updateLineChart(lastPointSelection.area, lastPointSelection.indicator);
+        }
+    });
 
 const xAxisG = scatterG.append("g")
     .attr("transform", `translate(0,${scatterInnerHeight})`);
-
 const yAxisG = scatterG.append("g");
 
-// Axis labels
 scatterG.append("text")
-    .attr("class", "x-label")
+    .attr("class", "axis-label")
     .attr("x", scatterInnerWidth / 2)
-    .attr("y", scatterInnerHeight + 40)
+    .attr("y", scatterInnerHeight + 45)
     .attr("text-anchor", "middle")
-    .text("2010 Supply Value");
+    .text("2010 Supply Value (All Food Groups)");
 
 scatterG.append("text")
-    .attr("class", "y-label")
+    .attr("class", "axis-label")
     .attr("transform", "rotate(-90)")
     .attr("x", -scatterInnerHeight / 2)
     .attr("y", -50)
     .attr("text-anchor", "middle")
-    .text("2022 Supply Value");
+    .text("2022 Supply Value (All Food Groups)");
 
-// Diagonal reference line
-scatterG.append("line")
-    .attr("class", "diag-line")
-    .attr("stroke", "#999")
-    .attr("stroke-dasharray", "4 4");
+// make sure bg stays behind axes/dots
+bgRect.lower();
 
-// Store data globally
-let scatterDataAll = [];
+// ======================
+// LEGEND (CLICKABLE)
+// ======================
 
-// ----------------------
-// 2. Load CSV
-// ----------------------
-d3.csv("./FoodSupply.csv").then(data => {
+const legendDiv = d3.select("#legend");
 
-    data.forEach(d => {
-        d.country    = d["Area"];
-        d.value2010  = +d["Y2010"];
-        d.value2022  = +d["Y2022"];
+const legendItems = legendDiv.selectAll(".legend-item")
+    .data(groupNames)
+    .enter()
+    .append("div")
+    .attr("class", "legend-item")
+    .on("click", (event, group) => {
+        event.stopPropagation();
+        if (currentGroupFilter === group) {
+            // turn filter off
+            currentGroupFilter = null;
+            resetScatterFilter();
+            updateLegendStyles();
+            if (lastPointSelection &&
+                typeof updateBarChart === "function" &&
+                typeof updateLineChart === "function") {
+                updateBarChart(lastPointSelection.area, lastPointSelection.indicator);
+                updateLineChart(lastPointSelection.area, lastPointSelection.indicator);
+            }
+        } else {
+            // activate filter for this group
+            currentGroupFilter = group;
+            clearSelection();
+            applyScatterFilter(group);
+            updateLegendStyles();
+            if (typeof updateBarChartGroup === "function") {
+                updateBarChartGroup(group);
+            }
+            if (typeof updateLineChartGroup === "function") {
+                updateLineChartGroup(group);
+            }
+        }
     });
 
-    scatterDataAll = data;
+legendItems.append("div")
+    .attr("class", "legend-swatch")
+    .style("background-color", d => colorScaleGroups(d));
 
-    updateScatter();
+legendItems.append("span")
+    .text(d => d);
 
-}).catch(err => {
-    console.error("Error loading CSV for scatterplot:", err);
-});
-
-// ----------------------
-// 3. Draw scatterplot
-// ----------------------
-function updateScatter() {
-
-    const filtered = scatterDataAll.filter(d =>
-        !isNaN(d.value2010) &&
-        !isNaN(d.value2022)
-    );
-
-    const maxVal = d3.max([
-        d3.max(filtered, d => d.value2010),
-        d3.max(filtered, d => d.value2022)
-    ]);
-
-    xScale.domain([0, maxVal * 1.05]);
-    yScale.domain([0, maxVal * 1.05]);
-
-    xAxisG.call(d3.axisBottom(xScale));
-    yAxisG.call(d3.axisLeft(yScale));
-
-    scatterG.select(".diag-line")
-        .attr("x1", xScale(0))
-        .attr("y1", yScale(0))
-        .attr("x2", xScale(maxVal))
-        .attr("y2", yScale(maxVal));
-
-    const circles = scatterG.selectAll("circle.data-point")
-        .data(filtered, d => d.country);
-
-    circles.exit().remove();
-
-    const circlesEnter = circles.enter()
-        .append("circle")
-        .attr("class", "data-point")
-        .attr("r", 4)
-        .attr("fill", "none")
-        .attr("stroke", "#1f77b4")
-        .attr("stroke-width", 2)
-        .attr("opacity", 0.8);
-
-    const merged = circlesEnter.merge(circles);
-
-    merged
-        .attr("cx", d => xScale(d.value2010))
-        .attr("cy", d => yScale(d.value2022));
-
-    merged.select("title").remove();
-    merged.append("title")
-        .text(d => `${d.country}\n2010: ${d.value2010}\n2022: ${d.value2022}`);
+function updateLegendStyles() {
+    legendDiv.selectAll(".legend-item")
+        .style("opacity", d =>
+            currentGroupFilter === null || currentGroupFilter === d ? 1 : 0.4
+        )
+        .style("font-weight", d =>
+            currentGroupFilter === d ? "600" : "400"
+        );
 }
 
+function applyScatterFilter(group) {
+    scatterG.selectAll(".dot")
+        .style("opacity", d => d.group === group ? 0.9 : 0.05);
+}
+
+function resetScatterFilter() {
+    scatterG.selectAll(".dot")
+        .style("opacity", 0.8);
+}
+
+function clearSelection() {
+    scatterG.selectAll(".dot").classed("selected", false);
+}
+
+// ======================
+// LOAD DATA & DRAW
+// ======================
+
+d3.csv("FoodSupply.csv").then(data => {
+    // keep everything; we only restrict to "All food groups" for scatter
+    const allRows = data.filter(d => d["Food Group"] === "All food groups");
+
+    window.nutritionData = { raw: data }; // for other charts
+
+    const scatterData = allRows.map(d => ({
+        area: d.Area,
+        indicator: d.Indicator,
+        group: getGroup(d.Indicator),
+        x2010: +d.Y2010,
+        y2022: +d.Y2022,
+        unit: d.Unit
+    }));
+
+    window.nutritionData.scatter = scatterData;
+
+    const xExtent = d3.extent(scatterData, d => d.x2010);
+    const yExtent = d3.extent(scatterData, d => d.y2022);
+    const xPad = (xExtent[1] - xExtent[0]) * 0.1;
+    const yPad = (yExtent[1] - yExtent[0]) * 0.1;
+
+    const xScale = d3.scaleLinear()
+        .domain([xExtent[0] - xPad, xExtent[1] + xPad])
+        .range([0, scatterInnerWidth]);
+
+    const yScale = d3.scaleLinear()
+        .domain([yExtent[0] - yPad, yExtent[1] + yPad])
+        .range([scatterInnerHeight, 0]);
+
+    const xAxis = d3.axisBottom(xScale).ticks(6);
+    const yAxis = d3.axisLeft(yScale).ticks(6);
+
+    xAxisG.call(xAxis);
+    yAxisG.call(yAxis);
+
+    let selected = scatterData[0];
+    lastPointSelection = { area: selected.area, indicator: selected.indicator };
+
+    const dots = scatterG.selectAll(".dot")
+        .data(scatterData)
+        .enter()
+        .append("circle")
+        .attr("class", "dot")
+        .attr("r", 3)
+        .attr("cx", d => xScale(d.x2010))
+        .attr("cy", d => yScale(d.y2022))
+        .attr("fill", d => colorScaleGroups(d.group))
+        .on("click", (event, d) => {
+            event.stopPropagation();
+            currentGroupFilter = null;
+            resetScatterFilter();
+            updateLegendStyles();
+            selected = d;
+            lastPointSelection = { area: d.area, indicator: d.indicator };
+            highlightSelection();
+            if (typeof updateBarChart === "function") {
+                updateBarChart(d.area, d.indicator);
+            }
+            if (typeof updateLineChart === "function") {
+                updateLineChart(d.area, d.indicator);
+            }
+        })
+        .append("title")
+        .text(d =>
+            `${d.indicator}\n${d.area}\n2010: ${d.x2010} ${d.unit}\n2022: ${d.y2022} ${d.unit}`
+        );
+
+    function highlightSelection() {
+        scatterG.selectAll(".dot")
+            .classed("selected", d =>
+                lastPointSelection &&
+                d.area === lastPointSelection.area &&
+                d.indicator === lastPointSelection.indicator
+            );
+    }
+
+    // initial selection + charts
+    highlightSelection();
+    if (typeof updateBarChart === "function") {
+        updateBarChart(selected.area, selected.indicator);
+    }
+    if (typeof updateLineChart === "function") {
+        updateLineChart(selected.area, selected.indicator);
+    }
+    updateLegendStyles();
+});

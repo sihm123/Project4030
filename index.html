@@ -1,42 +1,162 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8"/>
-    <title>Nutrition D3 Dashboard</title>
-
-    <!-- D3.js -->
+    <meta charset="UTF-8" />
+    <title>Nutrition Supply Trends</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-
     <style>
-        svg { border: 1px solid #ccc; margin-top: 20px; }
-        body { font-family: sans-serif; margin: 30px; }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #555;
+        }
+
+        .dashboard {
+            display: flex;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            height: 600px; /* keeps everything on one screen */
+        }
+
+        .left-panel {
+            flex: 1.3;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .chart-container {
+            background: #fafafa;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .chart-subtitle {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        #scatter-container {
+            flex: 1;
+        }
+
+        #bar-container,
+        #line-container {
+            flex: 1;
+            min-height: 0;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 16px;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        .legend-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            border: 1px solid #999;
+        }
+
+        .dot {
+            cursor: pointer;
+            opacity: 0.8;
+        }
+
+        .dot:hover {
+            opacity: 1;
+            stroke: #333;
+            stroke-width: 1.5px;
+        }
+
+        .dot.selected {
+            stroke: #000;
+            stroke-width: 2px;
+            opacity: 1;
+        }
+
+        .axis-label {
+            font-size: 12px;
+            fill: #333;
+        }
     </style>
 </head>
-
 <body>
-    <h1>Nutrition Dashboard</h1>
+<h1>Nutrition Supply Trends</h1>
+<p class="subtitle">
+    Click a nutrient on the scatterplot to see its breakdown by food group and its trend in the selected country (2010–2022).
+</p>
 
-    <!-- SCATTERPLOT -->
-    <h2>Scatterplot (2010 vs 2022)</h2>
-    <p style="max-width:800px">
-        Each point represents a country. The x-axis shows nutrient supply in 2010 and the y-axis
-        shows the nutrient supply in 2022.
-    </p>
-    <svg id="scatter" width="800" height="450"></svg>
+<div class="dashboard">
+    <div class="left-panel">
+        <div id="scatter-container" class="chart-container">
+            <div class="chart-title">2010 vs 2022 Nutrient Supply by Nutrient Type</div>
+            <div class="chart-subtitle">Each point is a nutrient in a country. Colored by nutrient group.</div>
+            <svg id="scatterplot"></svg>
+            <div id="legend" class="legend"></div>
+        </div>
+    </div>
 
-    <!-- RANKING CHART -->
-    <h2>Country Ranking (Protein Supply 2022)</h2>
-    <svg id="rankchart" width="800" height="600"></svg>
+    <div class="right-panel">
+        <div id="bar-container" class="chart-container">
+            <div id="bar-title" class="chart-title"></div>
+            <div id="bar-subtitle" class="chart-subtitle"></div>
+            <svg id="bar-chart"></svg>
+        </div>
 
-    <!-- PROTEIN BAR CHART -->
-    <h2>Protein Supply by Food Group (Select Country)</h2>
-    <select id="barCountry"></select>
-    <svg id="barchart" width="800" height="500"></svg>
+        <div id="line-container" class="chart-container">
+            <div id="line-title" class="chart-title"></div>
+            <div id="line-subtitle" class="chart-subtitle"></div>
+            <svg id="line-chart"></svg>
+        </div>
+    </div>
+</div>
 
-    <!-- Scripts -->
-    <script src="script-scatter.js"></script>
-    <script src="script-rank.js"></script>
-    <script src="script-bar.js"></script>
-
+<!-- scripts: bar + line define update functions, scatter calls them -->
+<script src="script-bar.js"></script>
+<script src="script-line.js"></script>
+<script src="script-scatter.js"></script>
 </body>
 </html>

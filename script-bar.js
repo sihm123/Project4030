@@ -1,129 +1,123 @@
-// script-bar.js
-console.log("script-bar.js loaded");
+// ======================
+// BAR CHART SETUP
+// ======================
 
-// ----------------------
-// 1. SVG + layout
-// ----------------------
-const barSvg = d3.select("#barchart");
-const barWidth = +barSvg.attr("width");
-const barHeight = +barSvg.attr("height");
+const barSVG = d3.select("#bar-chart");
+const barWidth = 400;
+const barHeight = 260;
+barSVG.attr("viewBox", `0 0 ${barWidth} ${barHeight}`);
 
-const barMargin = { top: 10, right: 40, bottom: 140, left: 100 };
+const barMargin = { top: 20, right: 20, bottom: 40, left: 160 };
 const barInnerWidth = barWidth - barMargin.left - barMargin.right;
 const barInnerHeight = barHeight - barMargin.top - barMargin.bottom;
 
-const barG = barSvg.append("g")
+const barG = barSVG.append("g")
     .attr("transform", `translate(${barMargin.left},${barMargin.top})`);
 
-const barCountrySelect = document.getElementById("barCountry");
-
-const xBar = d3.scaleBand().range([0, barInnerWidth]).padding(0.2);
-const yBar = d3.scaleLinear().range([barInnerHeight, 0]);
-
-const xBarAxisG = barG.append("g")
+const barXAxisG = barG.append("g")
     .attr("transform", `translate(0,${barInnerHeight})`);
-const yBarAxisG = barG.append("g");
+const barYAxisG = barG.append("g");
 
-barG.append("text")
-    .attr("class", "x-label")
-    .attr("x", barInnerWidth / 2)
-    .attr("y", barInnerHeight + 110)
-    .attr("text-anchor", "middle")
-    .text("Food Group");
+const barXScale = d3.scaleLinear().range([0, barInnerWidth]);
+const barYScale = d3.scaleBand().range([0, barInnerHeight]).padding(0.15);
 
-barG.append("text")
-    .attr("class", "y-label")
-    .attr("transform", "rotate(-90)")
-    .attr("x", -barInnerHeight / 2)
-    .attr("y", -60)
-    .attr("text-anchor", "middle")
-    .text("Protein Supply (2022)");
+// local copy of groups for group-level bar
+const barNutrientGroups = window.nutrientGroups || {};
 
-let barDataAll = [];
+// color for group-level bars
+const barGroupNames = window.groupNames || [];
+const barColorScale = (window.colorScaleGroups
+    ? window.colorScaleGroups
+    : d3.scaleOrdinal().domain(barGroupNames).range(d3.schemeTableau10));
 
-// ----------------------
-// 2. Load CSV
-// ----------------------
-d3.csv("./FoodSupply.csv").then(data => {
-    data.forEach(d => {
-        d.country    = d["Area"];
-        d.food_group = d["Food Group"];
-        d.indicator  = d["Indicator"];
-        d.value2022  = d["Y2022"] === "" ? null : +d["Y2022"];
-    });
+// ======================
+// 1. PER-COUNTRY, PER-NUTRIENT BAR
+// ======================
 
-    barDataAll = data;
+window.updateBarChart = function (area, indicator) {
+    if (!window.nutritionData || !window.nutritionData.raw) return;
 
-    // Only protein rows
-    const proteinRows = barDataAll.filter(d =>
-        d.indicator &&
-        d.indicator.toLowerCase().includes("protein") &&
-        d.value2022 !== null
+    const rows = window.nutritionData.raw.filter(d =>
+        d.Area === area &&
+        d.Indicator === indicator &&
+        d["Food Group"] !== "All food groups"
     );
 
-    // Populate dropdown
-    const countries = Array.from(new Set(proteinRows.map(d => d.country))).sort();
-    countries.forEach(c => {
-        const opt = document.createElement("option");
-        opt.value = c;
-        opt.textContent = c;
-        barCountrySelect.appendChild(opt);
-    });
+    rows.forEach(d => d.value2022 = +d.Y2022);
+    rows.sort((a, b) => d3.descending(a.value2022, b.value2022));
 
-    if (countries.length > 0) barCountrySelect.value = countries[0];
+    barXScale.domain([0, d3.max(rows, d => d.value2022) || 1]);
+    barYScale.domain(rows.map(d => d["Food Group"]));
 
-    barCountrySelect.addEventListener("change", () => updateBar(proteinRows));
-    updateBar(proteinRows);
-}).catch(err => {
-    console.error("Error loading CSV for bar chart:", err);
-});
+    const xAxis = d3.axisBottom(barXScale).ticks(4);
+    const yAxis = d3.axisLeft(barYScale);
 
-// ----------------------
-// 3. Update bar chart
-// ----------------------
-function updateBar(proteinRows) {
-    const country = barCountrySelect.value;
-    if (!country) return;
+    barXAxisG.call(xAxis);
+    barYAxisG.call(yAxis);
 
-    const subset = proteinRows.filter(d =>
-        d.country === country && d.value2022 !== null
-    );
+    const bars = barG.selectAll("rect").data(rows, d => d["Food Group"]);
 
-    xBar.domain(subset.map(d => d.food_group));
-    const maxVal = d3.max(subset, d => d.value2022);
-    yBar.domain([0, maxVal * 1.1]);
-
-    xBarAxisG.call(d3.axisBottom(xBar))
-        .selectAll("text")
-        .attr("transform", "rotate(-40)")
-        .style("text-anchor", "end");
-
-    yBarAxisG.call(d3.axisLeft(yBar));
-
-    const bars = barG.selectAll("rect.bar")
-        .data(subset, d => d.food_group);
+    bars.enter()
+        .append("rect")
+        .merge(bars)
+        .attr("x", 0)
+        .attr("y", d => barYScale(d["Food Group"]))
+        .attr("height", barYScale.bandwidth())
+        .attr("width", d => barXScale(d.value2022))
+        .attr("fill", "#4e79a7");
 
     bars.exit().remove();
 
-    const barsEnter = bars.enter()
+    d3.select("#bar-title").text("2022 Supply by Food Group");
+    d3.select("#bar-subtitle").text(`${indicator} — ${area}`);
+};
+
+// ======================
+// 2. GROUP-LEVEL, ALL-COUNTRIES BAR
+// ======================
+
+window.updateBarChartGroup = function (group) {
+    if (!window.nutritionData || !window.nutritionData.raw) return;
+
+    const indicators = barNutrientGroups[group];
+    if (!indicators) return;
+
+    const rows = window.nutritionData.raw.filter(d =>
+        d["Food Group"] === "All food groups" &&
+        indicators.includes(d.Indicator)
+    );
+
+    // average 2022 across all countries for each indicator
+    const aggregated = d3.rollups(
+        rows,
+        v => d3.mean(v, x => +x.Y2022),
+        d => d.Indicator
+    ).map(([indicator, value]) => ({ indicator, value }));
+
+    aggregated.sort((a, b) => d3.descending(a.value, b.value));
+
+    barXScale.domain([0, d3.max(aggregated, d => d.value) || 1]);
+    barYScale.domain(aggregated.map(d => d.indicator));
+
+    const xAxis = d3.axisBottom(barXScale).ticks(4);
+    const yAxis = d3.axisLeft(barYScale);
+
+    barXAxisG.call(xAxis);
+    barYAxisG.call(yAxis);
+
+    const bars = barG.selectAll("rect").data(aggregated, d => d.indicator);
+
+    bars.enter()
         .append("rect")
-        .attr("class", "bar")
-        .attr("x", d => xBar(d.food_group))
-        .attr("width", xBar.bandwidth())
-        .attr("y", barInnerHeight)
-        .attr("height", 0)
-        .attr("fill", "#4682b4");
+        .merge(bars)
+        .attr("x", 0)
+        .attr("y", d => barYScale(d.indicator))
+        .attr("height", barYScale.bandwidth())
+        .attr("width", d => barXScale(d.value))
+        .attr("fill", barColorScale(group));
 
-    barsEnter.merge(bars)
-        .transition()
-        .duration(600)
-        .attr("x", d => xBar(d.food_group))
-        .attr("width", xBar.bandwidth())
-        .attr("y", d => yBar(d.value2022))
-        .attr("height", d => barInnerHeight - yBar(d.value2022));
+    bars.exit().remove();
 
-    barG.selectAll("rect.bar").select("title").remove();
-    barG.selectAll("rect.bar").append("title")
-        .text(d => `${country}\n${d.food_group}\n2022: ${d.value2022}`);
-}
-
+    d3.select("#bar-title").text("Average 2022 Supply by Nutrient (All Countries)");
+    d3.select("#bar-subtitle").text(group);
+};

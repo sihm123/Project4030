@@ -1,192 +1,158 @@
-// script-line.js
+// ======================
+// LINE CHART SETUP
+// ======================
 
-// ----------------------
-// 1. SVG + layout
-// ----------------------
-const lineSvg = d3.select("#linechart");
-const lineWidth = +lineSvg.attr("width");
-const lineHeight = +lineSvg.attr("height");
+const lineSVG = d3.select("#line-chart");
+const lineWidth = 400;
+const lineHeight = 260;
+lineSVG.attr("viewBox", `0 0 ${lineWidth} ${lineHeight}`);
 
-const lineMargin = { top: 40, right: 40, bottom: 60, left: 70 };
+const lineMargin = { top: 20, right: 20, bottom: 40, left: 60 };
 const lineInnerWidth = lineWidth - lineMargin.left - lineMargin.right;
 const lineInnerHeight = lineHeight - lineMargin.top - lineMargin.bottom;
 
-const lineG = lineSvg.append("g")
+const lineG = lineSVG.append("g")
     .attr("transform", `translate(${lineMargin.left},${lineMargin.top})`);
-
-const lineCountrySelect = document.getElementById("lineCountry");
-const lineIndicatorSelect = document.getElementById("lineIndicator");
-
-const lineXScale = d3.scaleLinear().range([0, lineInnerWidth]);
-const lineYScale = d3.scaleLinear().range([lineInnerHeight, 0]);
 
 const lineXAxisG = lineG.append("g")
     .attr("transform", `translate(0,${lineInnerHeight})`);
 const lineYAxisG = lineG.append("g");
 
-lineG.append("text")
-    .attr("class", "x-label")
-    .attr("x", lineInnerWidth / 2)
-    .attr("y", lineInnerHeight + 40)
-    .attr("text-anchor", "middle")
-    .text("Year");
+const lineXScale = d3.scalePoint()
+    .range([0, lineInnerWidth])
+    .padding(0.5);
 
-lineG.append("text")
-    .attr("class", "y-label")
-    .attr("transform", "rotate(-90)")
-    .attr("x", -lineInnerHeight / 2)
-    .attr("y", -50)
-    .attr("text-anchor", "middle")
-    .text("Supply Value");
+const lineYScale = d3.scaleLinear()
+    .range([lineInnerHeight, 0]);
 
-let lineDataAll = [];
-const TOTAL_GROUP = "All food groups";   // same as scatter
+const yearColumns = [
+    "Y2010", "Y2011", "Y2012", "Y2013", "Y2014", "Y2015",
+    "Y2016", "Y2017", "Y2018", "Y2019", "Y2020", "Y2021", "Y2022"
+];
 
-// ----------------------
-// 2. Load FoodSupply.csv
-// ----------------------
-d3.csv("./FoodSupply.csv").then(data => {
-    data.forEach(d => {
-        d.country    = d["Area"];
-        d.food_group = d["Food Group"];
-        d.indicator  = d["Indicator"];
+lineXScale.domain(yearColumns.map(d => d.slice(1))); // "2010", ...
 
-        // parse yearly columns Y2010 ... Y2022
-        for (let year = 2010; year <= 2022; year++) {
-            const col = "Y" + year;
-            d[col] = d[col] === "" ? null : +d[col];
-        }
-    });
+const lineGen = d3.line()
+    .x(d => lineXScale(d.year))
+    .y(d => lineYScale(d.value));
 
-    lineDataAll = data;
+const lineGroupColor = (window.colorScaleGroups
+    ? window.colorScaleGroups
+    : d3.scaleOrdinal().range(d3.schemeTableau10));
 
-    // Use only "All food groups"
-    const filtered = lineDataAll.filter(d => d.food_group === TOTAL_GROUP);
+const lineNutrientGroups = window.nutrientGroups || {};
 
-    // ---- populate country dropdown ----
-    const countries = Array.from(new Set(filtered.map(d => d.country))).sort();
-    countries.forEach(c => {
-        const opt = document.createElement("option");
-        opt.value = c;
-        opt.textContent = c;
-        lineCountrySelect.appendChild(opt);
-    });
+// ======================
+// 1. PER-COUNTRY, PER-NUTRIENT LINE
+// ======================
 
-    // ---- populate indicator dropdown ----
-    const indicators = Array.from(new Set(filtered.map(d => d.indicator))).sort();
-    indicators.forEach(ind => {
-        const opt = document.createElement("option");
-        opt.value = ind;
-        opt.textContent = ind;
-        lineIndicatorSelect.appendChild(opt);
-    });
+window.updateLineChart = function (area, indicator) {
+    if (!window.nutritionData || !window.nutritionData.raw) return;
 
-    if (countries.length > 0) lineCountrySelect.value = countries[0];
-    if (indicators.length > 0) lineIndicatorSelect.value = indicators[0];
-
-    // listeners for dropdown changes
-    lineCountrySelect.addEventListener("change", updateLine);
-    lineIndicatorSelect.addEventListener("change", updateLine);
-
-    // listen for indicatorChange fired by scatter
-    window.addEventListener("indicatorChange", ev => {
-        const ind = ev.detail.indicator;
-        if (ind && indicators.includes(ind)) {
-            lineIndicatorSelect.value = ind;
-            updateLine();
-        }
-    });
-
-    // initial draw
-    updateLine();
-}).catch(err => {
-    console.error("Error loading CSV for line chart:", err);
-});
-
-// ----------------------
-// 3. Update line chart
-// ----------------------
-function updateLine() {
-    const country = lineCountrySelect.value;
-    const indicator = lineIndicatorSelect.value;
-    if (!country || !indicator) return;
-
-    // row for this (country, indicator, all food)
-    const rows = lineDataAll.filter(d =>
-        d.country === country &&
-        d.indicator === indicator &&
-        d.food_group === TOTAL_GROUP
+    const row = window.nutritionData.raw.find(d =>
+        d.Area === area &&
+        d.Indicator === indicator &&
+        d["Food Group"] === "All food groups"
     );
+    if (!row) return;
 
-    if (rows.length === 0) {
-        // clear if no data
-        lineXScale.domain([2010, 2022]);
-        lineYScale.domain([0, 1]);
-        lineXAxisG.call(d3.axisBottom(lineXScale).tickFormat(d3.format("d")));
-        lineYAxisG.call(d3.axisLeft(lineYScale));
-        lineG.selectAll(".line-path").remove();
-        lineG.selectAll(".line-point").remove();
-        return;
-    }
+    const series = yearColumns.map(col => ({
+        year: col.slice(1),
+        value: +row[col]
+    }));
 
-    const row = rows[0];
+    lineYScale.domain([0, d3.max(series, d => d.value) || 1]);
 
-    // build [{year, value}, ...]
-    const series = [];
-    for (let year = 2010; year <= 2022; year++) {
-        const col = "Y" + year;
-        const val = row[col];
-        if (val !== null && !isNaN(val)) {
-            series.push({ year, value: val });
-        }
-    }
-    if (series.length === 0) return;
+    const xAxis = d3.axisBottom(lineXScale)
+        .tickValues(["2010", "2014", "2018", "2022"]);
+    const yAxis = d3.axisLeft(lineYScale).ticks(4);
 
-    const maxVal = d3.max(series, d => d.value);
-    lineXScale.domain(d3.extent(series, d => d.year));
-    lineYScale.domain([0, maxVal * 1.1]);
+    lineXAxisG.call(xAxis);
+    lineYAxisG.call(yAxis);
 
-    lineXAxisG.call(d3.axisBottom(lineXScale).tickFormat(d3.format("d")));
-    lineYAxisG.call(d3.axisLeft(lineYScale));
-
-    const lineGen = d3.line()
-        .x(d => lineXScale(d.year))
-        .y(d => lineYScale(d.value));
-
-    // path
-    const path = lineG.selectAll(".line-path")
-        .data([series]);
+    const path = lineG.selectAll("path.country-line").data([series]);
 
     path.enter()
         .append("path")
-        .attr("class", "line-path")
-        .attr("fill", "none")
-        .attr("stroke", "#d62728")
-        .attr("stroke-width", 2)
+        .attr("class", "country-line")
         .merge(path)
+        .attr("fill", "none")
+        .attr("stroke", "#f28e2b")
+        .attr("stroke-width", 2)
         .attr("d", lineGen);
 
     path.exit().remove();
 
-    // points
-    const pts = lineG.selectAll(".line-point")
-        .data(series, d => d.year);
-
-    pts.exit().remove();
-
-    const ptsEnter = pts.enter()
+    const dots = lineG.selectAll("circle.country-dot").data(series);
+    dots.enter()
         .append("circle")
-        .attr("class", "line-point")
+        .attr("class", "country-dot")
+        .merge(dots)
         .attr("r", 3)
-        .attr("fill", "#d62728");
-
-    const ptsMerged = ptsEnter.merge(pts)
         .attr("cx", d => lineXScale(d.year))
-        .attr("cy", d => lineYScale(d.value));
+        .attr("cy", d => lineYScale(d.value))
+        .attr("fill", "#f28e2b");
+    dots.exit().remove();
 
-    // tooltips
-    ptsMerged.select("title").remove();
-    ptsMerged.append("title")
-        .text(d => `${country}, ${indicator}\n${d.year}: ${d.value}`);
-}
+    d3.select("#line-title").text("2010–2022 Trend (All Food Groups)");
+    d3.select("#line-subtitle").text(`${indicator} — ${area}`);
+};
 
+// ======================
+// 2. GROUP-LEVEL, ALL-COUNTRIES LINE
+// ======================
+
+window.updateLineChartGroup = function (group) {
+    if (!window.nutritionData || !window.nutritionData.raw) return;
+
+    const indicators = lineNutrientGroups[group];
+    if (!indicators) return;
+
+    const rows = window.nutritionData.raw.filter(d =>
+        d["Food Group"] === "All food groups" &&
+        indicators.includes(d.Indicator)
+    );
+    if (rows.length === 0) return;
+
+    const series = yearColumns.map(col => {
+        const vals = rows.map(r => +r[col]);
+        const mean = d3.mean(vals);
+        return { year: col.slice(1), value: mean };
+    });
+
+    lineYScale.domain([0, d3.max(series, d => d.value) || 1]);
+
+    const xAxis = d3.axisBottom(lineXScale)
+        .tickValues(["2010", "2014", "2018", "2022"]);
+    const yAxis = d3.axisLeft(lineYScale).ticks(4);
+
+    lineXAxisG.call(xAxis);
+    lineYAxisG.call(yAxis);
+
+    const path = lineG.selectAll("path.group-line").data([series]);
+
+    path.enter()
+        .append("path")
+        .attr("class", "group-line")
+        .merge(path)
+        .attr("fill", "none")
+        .attr("stroke", lineGroupColor(group))
+        .attr("stroke-width", 2)
+        .attr("d", lineGen);
+
+    path.exit().remove();
+
+    const dots = lineG.selectAll("circle.group-dot").data(series);
+    dots.enter()
+        .append("circle")
+        .attr("class", "group-dot")
+        .merge(dots)
+        .attr("r", 3)
+        .attr("cx", d => lineXScale(d.year))
+        .attr("cy", d => lineYScale(d.value))
+        .attr("fill", lineGroupColor(group));
+    dots.exit().remove();
+
+    d3.select("#line-title").text("Average 2010–2022 Trend (All Countries)");
+    d3.select("#line-subtitle").text(group);
+};
