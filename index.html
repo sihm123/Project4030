@@ -24,23 +24,23 @@
 
         .dashboard {
             display: flex;
+            flex-direction: column;
             gap: 20px;
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
-            height: 600px; /* keeps everything on one screen */
         }
 
-        .left-panel {
-            flex: 1.3;
-            display: flex;
-            flex-direction: column;
+        .top-row {
+            width: 100%;
         }
 
-        .right-panel {
-            flex: 1;
+        .bottom-row {
             display: flex;
-            flex-direction: column;
             gap: 20px;
+        }
+
+        .bottom-row > div {
+            flex: 1;
         }
 
         .chart-container {
@@ -52,9 +52,17 @@
             flex-direction: column;
         }
 
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
         .chart-title {
             font-weight: 600;
-            margin-bottom: 4px;
         }
 
         .chart-subtitle {
@@ -63,19 +71,32 @@
             margin-bottom: 6px;
         }
 
+        .country-selector {
+            display: none;
+        }
+
+        .chart-country {
+            font-size: 13px;
+            color: #555;
+            font-weight: 500;
+        }
+
         svg {
             width: 100%;
             height: 100%;
         }
 
         #scatter-container {
-            flex: 1;
+            min-height: 380px;
+        }
+
+        #dumbbell-container {
+            min-height: 280px;
         }
 
         #bar-container,
         #line-container {
-            flex: 1;
-            min-height: 0;
+            min-height: 280px;
         }
 
         .legend {
@@ -91,6 +112,18 @@
             align-items: center;
             gap: 4px;
             cursor: pointer;
+            padding: 3px 8px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .legend-item:hover {
+            background-color: #e8e8e8;
+        }
+
+        .legend-item.active {
+            background-color: #ddd;
+            font-weight: 600;
         }
 
         .legend-swatch {
@@ -98,6 +131,12 @@
             height: 12px;
             border-radius: 3px;
             border: 1px solid #999;
+        }
+
+        .legend-hint {
+            font-size: 11px;
+            color: #888;
+            margin-left: 8px;
         }
 
         .dot {
@@ -117,46 +156,116 @@
             opacity: 1;
         }
 
+        .dumbbell-row {
+            cursor: pointer;
+        }
+
+        .dumbbell-row:hover .dumbbell-line {
+            stroke-width: 5px !important;
+        }
+
+        .dumbbell-row:hover circle {
+            r: 8;
+        }
+
+        .dumbbell-row.selected .dumbbell-line {
+            stroke-width: 5px !important;
+        }
+
+        .dumbbell-row.selected circle {
+            stroke: #333 !important;
+            stroke-width: 2px !important;
+        }
+
         .axis-label {
             font-size: 12px;
             fill: #333;
+        }
+
+        .dumbbell-legend {
+            display: flex;
+            gap: 16px;
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .dumbbell-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .dumbbell-legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
         }
     </style>
 </head>
 <body>
 <h1>Nutrition Supply Trends</h1>
 <p class="subtitle">
-    Click a nutrient on the scatterplot to see its breakdown by food group and its trend in the selected country (2010–2022).
+    Click a nutrient group to see its breakdown. Then click a specific nutrient to see food group details and trends (2010–2022).
 </p>
 
 <div class="dashboard">
-    <div class="left-panel">
+    <!-- Top Row: Scatter Plot -->
+    <div class="top-row">
         <div id="scatter-container" class="chart-container">
             <div class="chart-title">2010 vs 2022 Nutrient Supply by Nutrient Type</div>
-            <div class="chart-subtitle">Each point is a nutrient in a country. Colored by nutrient group.</div>
+            <div class="chart-subtitle">Each point is a nutrient in a country. Click a legend item to filter, or click a point for details.</div>
             <svg id="scatterplot"></svg>
             <div id="legend" class="legend"></div>
         </div>
     </div>
 
-    <div class="right-panel">
+    <!-- Bottom Row: Three Charts -->
+    <div class="bottom-row">
+        <!-- Dumbbell Chart -->
+        <div id="dumbbell-container" class="chart-container">
+            <div class="chart-header">
+                <div id="dumbbell-title" class="chart-title">Nutrient Breakdown</div>
+                <div id="dumbbell-country" class="chart-country"></div>
+            </div>
+            <div id="dumbbell-subtitle" class="chart-subtitle"></div>
+            <svg id="dumbbell-chart"></svg>
+            <div class="dumbbell-legend">
+                <div class="dumbbell-legend-item">
+                    <div class="dumbbell-legend-dot" style="background: #888;"></div>
+                    <span>2010</span>
+                </div>
+                <div class="dumbbell-legend-item">
+                    <div class="dumbbell-legend-dot" style="background: #2e7d32;"></div>
+                    <span>2022 (increase)</span>
+                </div>
+                <div class="dumbbell-legend-item">
+                    <div class="dumbbell-legend-dot" style="background: #c62828;"></div>
+                    <span>2022 (decrease)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bar Chart -->
         <div id="bar-container" class="chart-container">
-            <div id="bar-title" class="chart-title"></div>
-            <div id="bar-subtitle" class="chart-subtitle"></div>
+            <div id="bar-title" class="chart-title">2022 Supply by Food Group</div>
+            <div id="bar-subtitle" class="chart-subtitle">Select a nutrient to see breakdown</div>
             <svg id="bar-chart"></svg>
         </div>
 
+        <!-- Line Chart -->
         <div id="line-container" class="chart-container">
-            <div id="line-title" class="chart-title"></div>
-            <div id="line-subtitle" class="chart-subtitle"></div>
+            <div id="line-title" class="chart-title">2010–2022 Trend</div>
+            <div id="line-subtitle" class="chart-subtitle">Select a nutrient to see trend</div>
             <svg id="line-chart"></svg>
         </div>
     </div>
 </div>
 
-<!-- scripts: bar + line define update functions, scatter calls them -->
+<!-- Load scripts in order: bar + line first, then dumbbell, then scatter -->
 <script src="script-bar.js"></script>
 <script src="script-line.js"></script>
+<script src="script-dumbbell.js"></script>
 <script src="script-scatter.js"></script>
 </body>
 </html>
