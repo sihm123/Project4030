@@ -64,10 +64,10 @@ window.colorScaleGroups = colorScaleGroups;
 
 const scatterSVG = d3.select("#scatterplot");
 const scatterWidth = 1200;
-const scatterHeight = 350;
+const scatterHeight = 280;
 scatterSVG.attr("viewBox", `0 0 ${scatterWidth} ${scatterHeight}`);
 
-const scatterMargin = { top: 20, right: 20, bottom: 50, left: 60 };
+const scatterMargin = { top: 15, right: 20, bottom: 40, left: 50 };
 const scatterInnerWidth =
     scatterWidth - scatterMargin.left - scatterMargin.right;
 const scatterInnerHeight =
@@ -109,7 +109,7 @@ const yAxisG = scatterG.append("g");
 scatterG.append("text")
     .attr("class", "axis-label")
     .attr("x", scatterInnerWidth / 2)
-    .attr("y", scatterInnerHeight + 40)
+    .attr("y", scatterInnerHeight + 35)
     .attr("text-anchor", "middle")
     .text("2010 Supply Value (All Food Groups)");
 
@@ -117,7 +117,7 @@ scatterG.append("text")
     .attr("class", "axis-label")
     .attr("transform", "rotate(-90)")
     .attr("x", -scatterInnerHeight / 2)
-    .attr("y", -45)
+    .attr("y", -38)
     .attr("text-anchor", "middle")
     .text("2022 Supply Value (All Food Groups)");
 
